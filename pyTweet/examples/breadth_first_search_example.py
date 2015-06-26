@@ -48,7 +48,7 @@ def main():
     # not wish to limit the collection, and will expand the graph on as many as these edges as possible. Occasionlly,
     # you may get back fewer edges for a user than the limit you set. Note that friends and followers will be saved in
     # the fields 'friends_list' and 'followers_list' automatically. The reply and mention users are saved in timelines.
-    hop_out_limits = {'max_hops': 2,                # Maximin number of hops in graph
+    expansion_limits = {'max_hops': 2,                # Maximin number of hops in graph
                       'max_data': 2,                # Maximum amount of data (in GB)
                       'friends': 77,               # Maximum friends per user to include in next hop
                       'followers': 200,             # Maximum followers per user to include in next hop

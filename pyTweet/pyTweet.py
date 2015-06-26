@@ -34,7 +34,7 @@ def get_twitter_certificate():
 
     @return - Filename of Twitter API certificate, including it's path
     """
-    return os.path.join(os.path.dirname(pyTweet.__file__), 'api.twitter.crt')
+    return os.path.join(os.path.dirname(pyTweet.__file__), 'api.twitter.cer')
 
 def get_authorization(twitter_keys):
     """
