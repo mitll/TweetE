@@ -12,7 +12,7 @@
 
 # BC, 6/25/2015
 
-min_weights="1 5 10 50 100 500 5000" # Prune nodes with total weight (sum of in and out weights) less than or equal to this value
+min_weights="1 5 10 50 100" # Prune nodes with total weight (sum of in and out weights) less than or equal to this value
 listfn=lists/list_graph.txt
 queue=single-thread
 do_cleanup=1
