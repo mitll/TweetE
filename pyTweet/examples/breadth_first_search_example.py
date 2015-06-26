@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+#
+# Copyright (c) 2015
+# Massachusetts Institute of Technology
+#
+# All Rights Reserved
+#
+
 """
 Authors: Kelly Geyer
 Date: April 30, 2015
