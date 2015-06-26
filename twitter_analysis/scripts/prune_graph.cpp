@@ -9,6 +9,12 @@
 #include<boost/iostreams/filter/gzip.hpp>
 #include<boost/iostreams/filtering_streambuf.hpp>
 #include<boost/iostreams/filtering_stream.hpp>
+//
+// Copyright (c) 2015
+// Massachusetts Institute of Technology
+//
+// All Rights Reserved
+//
 
 //
 // Prune the graph by edge weight

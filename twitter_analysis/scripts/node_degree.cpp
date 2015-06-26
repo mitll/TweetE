@@ -7,6 +7,12 @@
 #include<boost/iostreams/filter/gzip.hpp>
 #include<boost/iostreams/filtering_streambuf.hpp>
 #include<boost/iostreams/filtering_stream.hpp>
+//
+// Copyright (c) 2015
+// Massachusetts Institute of Technology
+//
+// All Rights Reserved
+//
 
 //
 // Node degree in a file using C++ Map

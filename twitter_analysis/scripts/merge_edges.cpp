@@ -9,6 +9,13 @@
 #include<boost/iostreams/filtering_stream.hpp>
 
 //
+// Copyright (c) 2015
+// Massachusetts Institute of Technology
+//
+// All Rights Reserved
+//
+
+//
 // Merge edges in a file using C++ Map
 //
 // Format of edge is "src dest attr1 attr2 attr3"

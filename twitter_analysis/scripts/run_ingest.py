@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+#
+# Copyright (c) 2015
+# Massachusetts Institute of Technology
+#
+# All Rights Reserved
+#
 
 #
 # Ingest tweets from raw format and serialize

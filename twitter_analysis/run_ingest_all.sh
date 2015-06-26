@@ -1,5 +1,12 @@
 #!/bin/sh
 #
+# Copyright (c) 2015
+# Massachusetts Institute of Technology
+#
+# All Rights Reserved
+#
+
+#
 # Ingest a file of tweets in tsv.gz form and convert to a structured Python serialized dictionary
 #
 

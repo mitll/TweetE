@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+#
+# Copyright (c) 2015
+# Massachusetts Institute of Technology
+#
+# All Rights Reserved
+#
 
 # 
 # Normalize the text content of a Tweet

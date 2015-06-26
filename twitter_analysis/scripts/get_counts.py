@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+#
+# Copyright (c) 2015
+# Massachusetts Institute of Technology
+#
+# All Rights Reserved
+#
 
 # 
 # All in one serialized tweet -> count generator

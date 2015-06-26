@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+#
+# Copyright (c) 2015
+# Massachusetts Institute of Technology
+#
+# All Rights Reserved
+#
 
 # Grabs a lot of the simple meta-data out of the tweet and puts them in a hash:
 # @tags -> at_tags

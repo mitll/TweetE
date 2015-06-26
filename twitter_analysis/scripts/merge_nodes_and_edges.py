@@ -1,8 +1,16 @@
 #!/usr/bin/env python
+#
+# Copyright (c) 2015
+# Massachusetts Institute of Technology
+#
+# All Rights Reserved
+#
 
 #
 # Merge nodes from multiple files
 #
+
+# Original version, WMC: 3/24/2015
 
 import argparse
 import codecs
@@ -10,8 +18,6 @@ import gzip
 import os
 import shutil
 import sys
-
-# Original version, WMC: 3/24/2015
 
 def read_nodes(fn):
     zf_raw = gzip.open(fn,'r')

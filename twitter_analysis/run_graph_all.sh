@@ -1,5 +1,12 @@
 #!/bin/sh
 #
+# Copyright (c) 2015
+# Massachusetts Institute of Technology
+#
+# All Rights Reserved
+#
+
+#
 # Create graphs from Twitter data.  run_ingest.sh must be run first.
 #
 

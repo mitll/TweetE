@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+#
+# Copyright (c) 2015
+# Massachusetts Institute of Technology
+#
+# All Rights Reserved
+#
 
 # Run a command per listfile using parallelization.  
 # Essentially a 'map' (without the reduce).
