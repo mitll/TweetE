@@ -22,31 +22,123 @@ profiles, timelines, friends and followers. During collection, the code is autom
 """
 
 
-import requests, time, datetime, ujson, os, re, pyTweet
+import requests, time, datetime, ujson, os, re, pyTweet, urllib2
 from requests_oauthlib import OAuth1
 
 
 ##
 # TWITTER AUTHORIZATION
-def get_twitter_certificate():
+def get_twitter_certificate(proxies):
     """
-    This function gets the location of Twitter API Certificate if it is stored in pyTweet's directory
+    This function gets the location of Twitter API Certificate if it is stored in pyTweet's directory. If the .cer file cannot be found it will be created
 
-    @return - Filename of Twitter API certificate, including it's path
+    :param proxies:
+    :return cafile: Filename of Twitter API certificate, including it's path
     """
-    return os.path.join(os.path.dirname(pyTweet.__file__), 'api.twitter.cer')
+    cafile = os.path.join(os.path.dirname(pyTweet.__file__), 'api.twitter.cer')     # Twitter API CA Certificate
+    cert_url = 'http://curl.haxx.se/ca/cacert.pem'                                  # CA certificate site
+    if not os.path.isfile(cafile):
+        print "\tThe file {} cannot be found...downloading it from {}.".format(cafile, cert_url)
+        file = open(cafile, 'wb')
+        file.write(urllib2.urlopen(cert_url).read())
+        file.close()
+    return cafile
+
+def load_twitter_api_key_set():
+    """
+    This funcitons loads a set of Twitter keys.
+
+    :return twitter_keys: Dictionary object containing 'API_KEY', 'API_SECRET', 'ACCESS_TOKEN', 'ACCESS_TOKEN_SECRET'
+    """
+    key_dir = os.path.join(os.path.dirname(pyTweet.__file__), 'twitter_api_keys')
+    key_jsons = os.listdir(key_dir)
+    key_jsons = filter(lambda k: re.match('.+\.json', k), key_jsons)
+    key_jsons = [os.path.join(key_dir, j) for j in key_jsons]
+    key = {}
+    for k in range(len(key_jsons)):
+        key = ujson.loads(open(key_jsons[k]).read())
+        if ('API_KEY' in key.keys()) and ('API_SECRET' in key.keys()) and ('ACCESS_TOKEN' in key.keys()) and ('ACCESS_TOKEN_SECRET' in key.keys()):
+            print "\tLoad the keys from file {}.".format(key_jsons[k])
+            return key
+        else:
+            print "\tWarning! The file {} does not contain a valid Twitter API key. Please refer to the documentation on creating an API key".format(key_jsons[k])
+    assert (key != {}), "None of the Twitter key JSONs were formatted properly - refer to the documentation on creating key files."
+    return key
+
+TWITTER_KEYS = load_twitter_api_key_set()   # global variable
 
 def get_authorization(twitter_keys):
     """
     This function obtains an authorization object for accessing the Official Twitter API.
 
-    @param twitter_keys - Dictionary object containing 'API_KEY', 'API_SECRET', 'ACCESS_TOKEN', 'ACCESS_TOKEN_SECRET'
-    @return OAUTH - Authorization object requred for remaining pyTweet collection functions
+    :param twitter_keys: Dictionary object containing 'API_KEY', 'API_SECRET', 'ACCESS_TOKEN', 'ACCESS_TOKEN_SECRET'
+    :return OAUTH: Authorization object requred for remaining pyTweet collection functions
     """
     for tk in ['API_KEY', 'API_SECRET', 'ACCESS_TOKEN', 'ACCESS_TOKEN_SECRET']:
         assert (tk in twitter_keys.keys()), "The field '{}' has not been found and is required for authentication.".format(tk)
     OAUTH = OAuth1(client_key=twitter_keys['API_KEY'], client_secret=twitter_keys['API_SECRET'], resource_owner_key=twitter_keys['ACCESS_TOKEN'], resource_owner_secret=twitter_keys['ACCESS_TOKEN_SECRET'])
     return OAUTH
+
+def change_twitter_keys(type, reset, remaining, limit, proxies, auth):
+    """
+    This function switches to another pair of Twitter API keys, if they are available, to avoid pausing.
+
+    :param type:
+    :param proxies: proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
+    :param auth: Twitter application authentication, see the get_authorization method
+
+    :return new_auth: Authorization object using new_keys
+    :return isNewAuth: Boolean value representing whether a new authorization has been produced
+    """
+    print "\nRUNNING CHANGE_TWITTER_KEYS"
+    # Count JSON files in key directory
+    key_dir = os.path.join(os.path.dirname(pyTweet.__file__), 'twitter_api_keys')
+    key_jsons = os.listdir(key_dir)
+    key_jsons = filter(lambda k: re.match('.+\.json', k), key_jsons)
+    key_jsons = [os.path.join(key_dir, j) for j in key_jsons]
+    isNewAuth = False
+    # Check if content is valid enough to continue...
+    assert (len(key_jsons) > 0), "You have no Twitter API key files saved in {}. Refer to the documentation to create key files.".format(key_dir)
+    if len(key_jsons) == 1:
+        print "\tThere are no other API keys to use...returning current API key."
+        pause = abs(int(time.time()) - reset) + 5
+        print "\tThere are no alternative keys. Pause for {} seconds.".format(pause)
+        time.sleep(pause)
+        return (auth, isNewAuth)
+    best_key_auth = auth
+    best_key = {}
+    best_key[type] = {'RESET': reset, 'LIMIT': limit, 'REMAINING': remaining}
+    print 'current key is ', best_key
+    for k in range(len(key_jsons)):
+        try:
+            key = ujson.loads(open(key_jsons[k]).read())
+        except ValueError:
+            print "\t\tWarning! The file {} does not contain a valid Twitter API key. Please refer to the documentation on creating an API key".format(key_jsons[k])
+            continue
+        # Be sure the file contains a valid Twitter key
+        if ('API_KEY' not in key.keys()) or ('API_SECRET' not in key.keys()) or ('ACCESS_TOKEN' not in key.keys()) or ('ACCESS_TOKEN_SECRET' not in key.keys()):
+            print "\t\tWarning! The file {} does not contain a valid Twitter API key. Please refer to the documentation on creating an API key".format(key_jsons[k])
+            continue
+        key_auth = get_authorization(key)
+        (reset2, remaining2, limit2) = get_rate_limit_status(type=type, proxies=proxies, auth=key_auth)
+        key[type] = {'RESET': reset2, 'LIMIT': limit2, 'REMAINING': remaining2}
+        # Check keys!
+        if key[type]['REMAINING'] == key[type]['LIMIT']:
+            best_key = key
+            best_key_auth = key_auth
+            isNewAuth = True
+            break
+        if (key[type]['REMAINING'] > best_key[type]['REMAINING']):
+            best_key = key
+            best_key_auth = key_auth
+            isNewAuth = True
+    # Create Twitter authorization
+    print "The best key is ", best_key
+    if best_key[type]['REMAINING'] < 1:
+        pause = abs(int(time.time()) - best_key[type]['RESET']) + 5
+        print "\tThere are no alternative keys. Pause for {} minutes.".format(pause/60)
+        time.sleep(pause)
+    return (best_key_auth, isNewAuth)
 
 
 ##
@@ -55,49 +147,61 @@ def get_rate_limit_status(type, proxies, auth):
     """
     This function returns the remaining and reset seconds.
 
-    @param type    - Type of API call: "timeline", "friends", "followers", "search_tweets", "search_users", "retweets", or "users"
-    @param proxies - proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
-    @param auth    - Twitter application authentication, see the get_authorization method
-    @return (reset, remaining) seconds
+    @param type       - Type of API call: "timeline", "friends", "followers", "search_tweets", "search_users", "retweets", or "users"
+    @param proxies    - proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
+    @param auth       - Twitter application authentication, see the get_authorization method
+    @return reset - The remaining window before the limit resets in UTC epoch seconds
+    @return remaining - the number of requests left for the 15 minute window
+    @return limit - the rate limit ceiling for that given request
     """
-    cafile = get_twitter_certificate()
+    cafile = get_twitter_certificate(proxies)
     url = 'https://api.twitter.com/1.1/application/rate_limit_status.json?resources='
-    if type == 'timeline':
-        rateLimitStatus = requests.get(url=url+'statuses', proxies=proxies, auth=auth, verify=cafile)
-        rls_json = rateLimitStatus.json()
-        reset = rls_json['resources']['statuses']['/statuses/user_timeline']['reset']
-        remaining = rls_json['resources']['statuses']['/statuses/user_timeline']['remaining']
-    if type == 'friends':
-        rateLimitStatus = requests.get(url=url+'friends', proxies=proxies, auth=auth, verify=cafile)
-        rls_json = rateLimitStatus.json()
-        reset = rls_json['resources']['friends']['/friends/ids']['reset']
-        remaining = rls_json['resources']['friends']['/friends/ids']['remaining']
-    if type == 'followers':
-        rateLimitStatus = requests.get(url=url+'followers', proxies=proxies, auth=auth, verify=cafile)
-        rls_json = rateLimitStatus.json()
-        reset = rls_json['resources']['followers']['/followers/ids']['reset']
-        remaining = rls_json['resources']['followers']['/followers/ids']['remaining']
-    if type == 'users':
-        rateLimitStatus = requests.get(url=url+'users', proxies=proxies, auth=auth, verify=cafile)
-        rls_json = rateLimitStatus.json()
-        reset = rls_json['resources']['users']['/users/lookup']['reset']
-        remaining = rls_json['resources']['users']['/users/lookup']['remaining']
-    if type == 'search_tweets':
-        rateLimitStatus = requests.get(url=url+'search', proxies=proxies, auth=auth, verify=cafile)
-        rls_json = rateLimitStatus.json()
-        reset = rls_json['resources']['search']['/search/tweets']['reset']
-        remaining = rls_json['resources']['search']['/search/tweets']['remaining']
-    if type == 'search_users':
-        rateLimitStatus = requests.get(url=url+'search', proxies=proxies, auth=auth, verify=cafile)
-        rls_json = rateLimitStatus.json()
-        reset = rls_json['resources']['search']['/search/tweets']['reset']
-        remaining = rls_json['resources']['search']['/search/tweets']['remaining']
-    if type == 'retweets':
-        rateLimitStatus = requests.get(url=url+'statuses', proxies=proxies, auth=auth, verify=cafile)
-        rls_json = rateLimitStatus.json()
-        reset = rls_json['resources']['statuses']['/statuses/retweets/:id']['reset']
-        remaining = rls_json['resources']['statuses']['/statuses/retweets/:id']['remaining']
-    return (reset, remaining)
+    try:
+        if type == 'timeline':
+            rateLimitStatus = requests.get(url=url+'statuses', proxies=proxies, auth=auth, verify=cafile)
+            rls_json = rateLimitStatus.json()
+            reset = rls_json['resources']['statuses']['/statuses/user_timeline']['reset']
+            remaining = rls_json['resources']['statuses']['/statuses/user_timeline']['remaining']
+            limit = rls_json['resources']['statuses']['/statuses/user_timeline']['limit']
+        if type == 'friends':
+            rateLimitStatus = requests.get(url=url+'friends', proxies=proxies, auth=auth, verify=cafile)
+            rls_json = rateLimitStatus.json()
+            reset = rls_json['resources']['friends']['/friends/ids']['reset']
+            remaining = rls_json['resources']['friends']['/friends/ids']['remaining']
+            limit = rls_json['resources']['friends']['/friends/ids']['limit']
+        if type == 'followers':
+            rateLimitStatus = requests.get(url=url+'followers', proxies=proxies, auth=auth, verify=cafile)
+            rls_json = rateLimitStatus.json()
+            reset = rls_json['resources']['followers']['/followers/ids']['reset']
+            remaining = rls_json['resources']['followers']['/followers/ids']['remaining']
+            limit = rls_json['resources']['followers']['/followers/ids']['limit']
+        if type == 'users':
+            rateLimitStatus = requests.get(url=url+'users', proxies=proxies, auth=auth, verify=cafile)
+            rls_json = rateLimitStatus.json()
+            reset = rls_json['resources']['users']['/users/lookup']['reset']
+            remaining = rls_json['resources']['users']['/users/lookup']['remaining']
+            limit = rls_json['resources']['users']['/users/lookup']['limit']
+        if type == 'search_tweets':
+            rateLimitStatus = requests.get(url=url+'search', proxies=proxies, auth=auth, verify=cafile)
+            rls_json = rateLimitStatus.json()
+            reset = rls_json['resources']['search']['/search/tweets']['reset']
+            remaining = rls_json['resources']['search']['/search/tweets']['remaining']
+            limit = rls_json['resources']['search']['/search/tweets']['limit']
+        if type == 'search_users':
+            rateLimitStatus = requests.get(url=url+'search', proxies=proxies, auth=auth, verify=cafile)
+            rls_json = rateLimitStatus.json()
+            reset = rls_json['resources']['search']['/search/tweets']['reset']
+            remaining = rls_json['resources']['search']['/search/tweets']['remaining']
+            limit = rls_json['resources']['search']['/search/tweets']['limit']
+        if type == 'retweets':
+            rateLimitStatus = requests.get(url=url+'statuses', proxies=proxies, auth=auth, verify=cafile)
+            rls_json = rateLimitStatus.json()
+            reset = rls_json['resources']['statuses']['/statuses/retweets/:id']['reset']
+            remaining = rls_json['resources']['statuses']['/statuses/retweets/:id']['remaining']
+            limit = rls_json['resources']['statuses']['/statuses/retweets/:id']['limit']
+    except KeyError:
+        return (time.time() + 900, 0, 15)
+    return (reset, remaining, limit)
 
 def check_rate_limit_status(min_calls, type, auth, proxies):
     """
@@ -107,21 +211,27 @@ def check_rate_limit_status(min_calls, type, auth, proxies):
     @param type      - type of call: "timeline", "friends", "followers", "search_tweets", "search_users", "retweets", or "users"
     @param proxies   - proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
     @param auth      - Twitter application authentication, see the get_authorization method
+    @return auth
     """
     # Check parameters
     assert (type.lower() in ['timeline', 'friends', 'followers', 'users', 'search_tweets', 'search_users', 'retweets']), "You must specify the parameter type as 'timeline', 'friends', 'followers', 'users', 'search_tweets', 'search_users', or 'retweets'."
     # Collect reset and remaining
-    try:
-        (reset, remaining) = get_rate_limit_status(type=type, proxies=proxies, auth=auth)
-    except KeyError:
-        print "Pause for 15 minutes"
-        time.sleep(60*15 + 20)
-        (reset, remaining) = get_rate_limit_status(type=type, proxies=proxies, auth=auth)
+    # try:
+    #     (reset, remaining, limit) = get_rate_limit_status(type=type, proxies=proxies, auth=auth)
+    # except KeyError:
+    #     (auth, isNewAuth) = change_twitter_keys(type=type, reset=(time.time() + 900), remaining=0, limit=15, proxies=proxies, auth=auth)
+    #     (reset, remaining, limit) = get_rate_limit_status(type=type, proxies=proxies, auth=auth)
+    (reset, remaining, limit) = get_rate_limit_status(type=type, proxies=proxies, auth=auth)
     # Pause if needed
     if remaining < min_calls:
         pause = abs(int(time.time()) - reset) + 5
-        print "There are less than ", min_calls, " calls remaining in this window. Pause for ", pause, " seconds.\n"
-        time.sleep(abs(int(time.time()) - reset) + 5)
+        # If pause is longer than 3 minutes try another set of keys...
+        if pause > 300:
+            (auth, isNewAuth) = change_twitter_keys(type=type, reset=reset, remaining=remaining, limit=limit, proxies=proxies, auth=auth)
+        else:
+            print "There are less than {} calls remaining in this window. Pause for {} seconds.".format(min_calls, pause)
+            time.sleep(pause)
+    return auth
 
 
 ##
@@ -137,9 +247,9 @@ def user_lookup_usernames(user_list, proxies, auth):
     @return user_info - list of JSON user objects that could be returned.
     """
     if (user_list is None) or (user_list == []): return []
-    cafile = get_twitter_certificate()
+    cafile = get_twitter_certificate(proxies)
     # Check RLS
-    check_rate_limit_status(min_calls=1, type='users', proxies=proxies, auth=auth)
+    auth = check_rate_limit_status(min_calls=1, type='users', proxies=proxies, auth=auth)
     # Split usernames into groups of 100
     usernames = [user_list[i:i+100] for i in range(0, len(user_list), 100)]
     # Get user information
@@ -152,7 +262,7 @@ def user_lookup_usernames(user_list, proxies, auth):
             r = requests.get(url='https://api.twitter.com/1.1/users/lookup.json?screen_name=' + ','.join(usernames[i]),
                              proxies=proxies, auth=auth, verify=cafile)
             user_info = user_info + r.json()
-            check_rate_limit_status(min_calls=1, type='users', proxies=proxies, auth=auth)
+            auth = check_rate_limit_status(min_calls=1, type='users', proxies=proxies, auth=auth)
     return user_info
 
 def user_lookup_userids(user_list, proxies, auth):
@@ -166,11 +276,11 @@ def user_lookup_userids(user_list, proxies, auth):
     @return user_info     - JSON list of user information that could be retrieved
     """
     if (user_list is None) or (len(user_list) < 1): return []
-    cafile = get_twitter_certificate()
+    cafile = get_twitter_certificate(proxies)
     # Split user IDs into groups of 100
     userids = [user_list[i:i+100] for i in range(0, len(user_list), 100)]
     # RLS check
-    check_rate_limit_status(min_calls=2, type='users', proxies=proxies, auth=auth)
+    auth = check_rate_limit_status(min_calls=2, type='users', proxies=proxies, auth=auth)
     # Make API call and get user information
     str_userids = [str(j) for j in userids[0]]
     r = requests.get(url='https://api.twitter.com/1.1/users/lookup.json?user_id=' + ','.join(str_userids),
@@ -184,7 +294,7 @@ def user_lookup_userids(user_list, proxies, auth):
                              proxies=proxies, auth=auth, verify=cafile)
             if 'errors' in r.json(): continue
             user_info = user_info + r.json()
-            check_rate_limit_status(min_calls=1, type='users', proxies=proxies, auth=auth)
+            auth = check_rate_limit_status(min_calls=1, type='users', proxies=proxies, auth=auth)
     return user_info
 
 def get_user_friends(user_id, proxies, auth, limit=None):
@@ -198,7 +308,7 @@ def get_user_friends(user_id, proxies, auth, limit=None):
     @param auth - Twitter application authentication, see the get_authorization method
     @return friends_list - list of user's friends' IDs
     """
-    cafile = get_twitter_certificate()
+    cafile = get_twitter_certificate(proxies)
     # Set API calls based on limit
     if (limit is not None) and (int(limit) <= 5000):
         keepLooking = False
@@ -206,7 +316,7 @@ def get_user_friends(user_id, proxies, auth, limit=None):
     else:
         keepLooking = True
     # Check RLS
-    check_rate_limit_status(min_calls=1, type='friends', proxies=proxies, auth=auth)
+    auth = check_rate_limit_status(min_calls=1, type='friends', proxies=proxies, auth=auth)
     # Call to get friends
     r = requests.get(url='https://api.twitter.com/1.1/friends/ids.json?cursor=-1&user_id={}&count=5000'.format(user_id), proxies=proxies, auth=auth, verify=cafile)
     r2 = r.json()
@@ -215,14 +325,15 @@ def get_user_friends(user_id, proxies, auth, limit=None):
         friends_list = r2['ids']
         next_cursor = r2['next_cursor']
     except KeyError:
-        print "Key Error in collecting followers.\n"
+        print "\tKey Error in collecting followers."
+        print '\nr2: ', r2
         return friends_list
     # Are there more friends?
     next_cursor = r2['next_cursor']
     while keepLooking and (next_cursor != 0):
-        print "More than 5000 friends"
+        print "\tMore than 5000 friends..."
         # Check RLS
-        check_rate_limit_status(min_calls=1, type='friends', proxies=proxies, auth=auth)
+        auth = check_rate_limit_status(min_calls=1, type='friends', proxies=proxies, auth=auth)
         # Make API call
         r = requests.get(url='https://api.twitter.com/1.1/friends/ids.json?cursor={}&user_id={}&count=5000'.format(next_cursor, user_id),
                          proxies=proxies, auth=auth, verify=cafile)
@@ -244,7 +355,7 @@ def get_user_followers(user_id, proxies, auth, limit=None):
     @param auth - Twitter application authentication, see the get_authorization method
     @return followers_list - list of user's followers' IDs
     """
-    cafile = get_twitter_certificate()
+    cafile = get_twitter_certificate(proxies)
     # Set API calls based on limit
     if (limit is not None) and limit <= 5000:
         keepLooking = False
@@ -252,7 +363,7 @@ def get_user_followers(user_id, proxies, auth, limit=None):
     else:
         keepLooking = True
     # Check RLS
-    check_rate_limit_status(min_calls=1, type='followers', proxies=proxies, auth=auth)
+    auth = check_rate_limit_status(min_calls=1, type='followers', proxies=proxies, auth=auth)
     # Call to get followers
     r = requests.get(url='https://api.twitter.com/1.1/followers/ids.json?cursor=-1&user_id={}&count=5000'.format(user_id), proxies=proxies, auth=auth, verify=cafile)
     r2 = r.json()
@@ -261,16 +372,17 @@ def get_user_followers(user_id, proxies, auth, limit=None):
         followers_list = r2['ids']
         next_cursor = r2['next_cursor']
     except KeyError:
-        print "Key Error in collecting followers.\n"
+        print "Key Error in collecting followers."
         return followers_list
     # Are there more followers?
     while keepLooking and (next_cursor != 0):
-        print "More than 5000 followers.\n"
+        print "\tMore than 5000 followers..."
         # Check RLS
-        check_rate_limit_status(min_calls=1, type='followers', proxies=proxies, auth=auth)
+        auth = check_rate_limit_status(min_calls=1, type='followers', proxies=proxies, auth=auth)
         # Make API call
-        r = requests.get(url='https://api.twitter.com/1.1/followers/ids.json?cursor={}&user_id={}&count=5000'.format(next_cursor, user_id), proxies=proxies, auth=auth, cafile=cafile)
+        r = requests.get(url='https://api.twitter.com/1.1/followers/ids.json?cursor={}&user_id={}&count=5000'.format(next_cursor, user_id), proxies=proxies, auth=auth, verify=cafile)
         r2 = r.json()
+        print 'r2: ', r2.keys()
         followers_list = followers_list + r2['ids']
         # Is list complete? Has the limit been met, or does next_cursor equal 0?
         next_cursor = r2['next_cursor']
@@ -309,14 +421,14 @@ def collect_user_timeline(USER, USER_type, start_date, proxies, auth):
     # Determine wheter USER is a user id or user name, then return the appropriate URL
     assert ((USER_type == 'user_id') or (USER_type == 'screen_name')), "The parameter USER_type must be either 'user_id' or 'screen_name'"
     url = 'https://api.twitter.com/1.1/statuses/user_timeline.json?{}={}&count=200'.format(USER_type, USER)
-    cafile = get_twitter_certificate()
+    cafile = get_twitter_certificate(proxies)
     # Collect user timeline
-    check_rate_limit_status(min_calls=2, type='timeline', proxies=proxies, auth=auth)
+    auth = check_rate_limit_status(min_calls=2, type='timeline', proxies=proxies, auth=auth)
     r = requests.get(url=url, proxies=proxies, auth=auth, verify=cafile)
     timeline = r.json()
     # Check if timeline is empty
     if len(timeline) < 1:
-        print "The timeline for user ", str(USER), " is empty. Move on to next user.\n"
+        print "The timeline for user ", str(USER), " is empty. Move on to next user."
         return []
     # Store data in a dictionary named timeline
     try:
@@ -339,9 +451,9 @@ def collect_user_timeline(USER, USER_type, start_date, proxies, auth):
             oldest_date = convert_twitter_date(rr2[len(rr2)-1]['created_at'])
             max_id = rr2[len(rr2)-1]['id']
             # Check rate limit status for user timelines
-            check_rate_limit_status(min_calls=1, type='timeline', proxies=proxies, auth=auth)
+            auth = check_rate_limit_status(min_calls=1, type='timeline', proxies=proxies, auth=auth)
         else:
-            print "There are no more tweets to collect\n"
+            print "\tThere are no more tweets to collect"
             break
     # EOF return timeline if it exists
     return timeline
@@ -372,7 +484,8 @@ def pull_timeline_entitites(timeline, type, limit=None):
             for jj in range(len(mentions)):
                 entities.add(mentions[jj]['id'])
         # Check limit
-        if (limit is not None) and (len(entities) > limit): return entities[0:limit]
+        if (limit is not None) and (len(entities) > limit):
+            return set(list(entities)[0:limit])
     return entities
 
 

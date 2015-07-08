@@ -23,7 +23,7 @@ Description: This script builds a database based on a seed of users. After they 
 """
 
 
-import os, datetime, uuid, ujson, time, re, pyTweet, string, numpy as np, sys
+import os, datetime, uuid, ujson, time, re, pyTweet, string, sys
 
 
 def measure_data(user_dir, timeline_dir):
@@ -121,7 +121,6 @@ def save_place_savers(user_dir, place_savers):
     @param user_dir - Directory of profile .JSON
     @param place_savers
     """
-    print "\tNOW SAVING PLACE SAVING PARAMETERS"
     # Save finished_users and next_user_list
     if 'cur_user_list' in place_savers.keys(): fast_save(filename=os.path.join(user_dir, 'cur_user_list_v1.txt'), obj=list(place_savers['cur_user_list']))
     if 'next_user_list' in place_savers.keys(): fast_save(filename=os.path.join(user_dir, 'next_user_list_v1.txt'), obj=list(place_savers['next_user_list']))
@@ -142,12 +141,11 @@ def fast_save(filename, obj):
     ujson.dump(obj, f)
     f.close()
 
-def breadth_first_search(user_seed, timeline_start_date, twitter_keys, host, port, save_dir={}, hop_out_limits={}, collection_limits={}):
+def breadth_first_search(user_seed, timeline_start_date, host, port, save_dir={}, hop_out_limits={}, collection_limits={}):
     """
     This function creates a network based on Twitter friends
 
     @param user_seed           - List of user names
-    @param twitter_keys        - Dictionary object containing 'API_KEY', 'API_SECRET', 'ACCESS_TOKEN', 'ACCESS_TOKEN_SECRET'
     @param host                -
     @param port                -
     @param timeline_start_date - Beginning of date (datetime.date object) of timelines in collection
@@ -181,15 +179,15 @@ def breadth_first_search(user_seed, timeline_start_date, twitter_keys, host, por
     """
     # CHECK PARAMETERS
     # Check save_dir dictionary fields, create directories if they do not already exist
-    if 'twitter_profiles' not in save_dir.keys():
-        print "\tNo value was specified for save_dir['twitter_profiles'] so it will be set to {}.".format(os.getcwd())
-        save_dir['twitter_profiles'] = os.getcwd()
+    if ('twitter_profiles' not in save_dir.keys()) or (save_dir['twitter_profiles'].strip() == ''):
+        save_dir['twitter_profiles'] = os.path.join(os.getcwd(), 'profiles')
+        print "\tNo directory was specified for save_dir['twitter_profiles'] so it will be set to {}.".format(save_dir['twitter_profiles'])
     if not os.path.isdir(save_dir['twitter_profiles']):
         print "\tThe directory {} does not exist...creating it now".format(save_dir['twitter_profiles'])
         os.mkdir(save_dir['twitter_profiles'])
-    if 'twitter_timelines' not in save_dir.keys():
-        print "\tNo value was specified for save_dir['twitter_timelines'] so it will be set to {}.".format(os.getcwd())
-        save_dir['twitter_timelines'] = os.getcwd()
+    if ('twitter_timelines' not in save_dir.keys()) or (save_dir['twitter_timelines'].strip() == ''):
+        save_dir['twitter_timelines'] = os.path.join(os.getcwd(), 'timelines')
+        print "\tNo directory was specified for save_dir['twitter_timelines'] so it will be set to {}.".format(save_dir['twitter_timelines'])
     if not os.path.isdir(save_dir['twitter_timelines']):
         print "\tThe directory {} does not exist...creating it now".format(save_dir['twitter_timelines'])
         os.mkdir(save_dir['twitter_timelines'])
@@ -235,10 +233,6 @@ def breadth_first_search(user_seed, timeline_start_date, twitter_keys, host, por
         place_savers['cur_user_list'] = set(user_seed)
     print "\tWe will collect {} users in hop {}".format(len(place_savers['cur_user_list']), place_savers['cur_hop'])
     print "\tSo far we plan to collect {} users in hop {}".format(len(place_savers['next_user_list']), place_savers['cur_hop'] + 1)
-    print "\nfinished_users: ", place_savers['finished_users']
-    print "\ncur_users: ", place_savers['cur_user_list']
-    print "\nnext_users: ", place_savers['next_user_list']
-    print "\nhop: ", place_savers['cur_hop']
     # Determine limits for friends/followers collection -
     if None in [hop_out_limits['friends'], collection_limits['friends']]:
         MAX_FRIENDS = None
@@ -250,6 +244,8 @@ def breadth_first_search(user_seed, timeline_start_date, twitter_keys, host, por
         MAX_FOLLOWERS = max(hop_out_limits['followers'], collection_limits['followers'])
     # Create proxies dictionary
     proxies = {'http': 'http://%s:%s' % (host, port), 'https': 'http://%s:%s' % (host, port)}
+    # Load twitter keys
+    twitter_keys = pyTweet.load_twitter_api_key_set()
     # API AUTHORIZATION
     print "\nAPI Authorization"
     auth = pyTweet.get_authorization(twitter_keys)
@@ -358,7 +354,7 @@ def breadth_first_search(user_seed, timeline_start_date, twitter_keys, host, por
 
                 # Pull out user mentions, if applicable
                 if ('user_mention_id' in hop_out_limits) and ((hop_out_limits['user_mention_id'] > 0) or (hop_out_limits['user_mention_id'] is None)):
-                    print "\tAdd user mentionds to the next hop"
+                    print "\tAdd user mentions to the next hop"
                     tl_mentions = pyTweet.pull_timeline_entitites(timeline=tldata, type='user_mention_id', limit=hop_out_limits['user_mention_id'])
                     place_savers['next_user_list'].update(tl_mentions)
                     save_place_savers(user_dir=save_dir['twitter_profiles'], place_savers=place_savers)
@@ -377,7 +373,7 @@ def breadth_first_search(user_seed, timeline_start_date, twitter_keys, host, por
         # Remove finished_users from place_savers['next_user_list']
         place_savers['next_user_list'].difference_update(set(map(int, place_savers['finished_users'].keys())))
         # Prepare for next iteration of hop
-        place_savers['cur_user_list'] = place_savers['next_user_list'];
+        place_savers['cur_user_list'] = place_savers['next_user_list']
         place_savers['next_user_list'] = set([])
         place_savers['cur_hop'] += 1
         save_place_savers(user_dir=save_dir['twitter_profiles'], place_savers=place_savers)
