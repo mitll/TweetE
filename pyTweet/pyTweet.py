@@ -65,8 +65,6 @@ def load_twitter_api_key_set():
     assert (key != {}), "None of the Twitter key JSONs were formatted properly - refer to the documentation on creating key files."
     return key
 
-TWITTER_KEYS = load_twitter_api_key_set()   # global variable
-
 def get_authorization(twitter_keys):
     """
     This function obtains an authorization object for accessing the Official Twitter API.
@@ -90,7 +88,6 @@ def change_twitter_keys(type, reset, remaining, limit, proxies, auth):
     :return new_auth: Authorization object using new_keys
     :return isNewAuth: Boolean value representing whether a new authorization has been produced
     """
-    print "\nRUNNING CHANGE_TWITTER_KEYS"
     # Count JSON files in key directory
     key_dir = os.path.join(os.path.dirname(pyTweet.__file__), 'twitter_api_keys')
     key_jsons = os.listdir(key_dir)
@@ -108,16 +105,15 @@ def change_twitter_keys(type, reset, remaining, limit, proxies, auth):
     best_key_auth = auth
     best_key = {}
     best_key[type] = {'RESET': reset, 'LIMIT': limit, 'REMAINING': remaining}
-    print 'current key is ', best_key
     for k in range(len(key_jsons)):
         try:
             key = ujson.loads(open(key_jsons[k]).read())
         except ValueError:
-            print "\t\tWarning! The file {} does not contain a valid Twitter API key. Please refer to the documentation on creating an API key".format(key_jsons[k])
+            print "\tWarning! The file {} does not contain a valid Twitter API key. Please refer to the documentation on creating an API key".format(key_jsons[k])
             continue
         # Be sure the file contains a valid Twitter key
         if ('API_KEY' not in key.keys()) or ('API_SECRET' not in key.keys()) or ('ACCESS_TOKEN' not in key.keys()) or ('ACCESS_TOKEN_SECRET' not in key.keys()):
-            print "\t\tWarning! The file {} does not contain a valid Twitter API key. Please refer to the documentation on creating an API key".format(key_jsons[k])
+            print "\tWarning! The file {} does not contain a valid Twitter API key. Please refer to the documentation on creating an API key".format(key_jsons[k])
             continue
         key_auth = get_authorization(key)
         (reset2, remaining2, limit2) = get_rate_limit_status(type=type, proxies=proxies, auth=key_auth)
@@ -133,7 +129,6 @@ def change_twitter_keys(type, reset, remaining, limit, proxies, auth):
             best_key_auth = key_auth
             isNewAuth = True
     # Create Twitter authorization
-    print "The best key is ", best_key
     if best_key[type]['REMAINING'] < 1:
         pause = abs(int(time.time()) - best_key[type]['RESET']) + 5
         print "\tThere are no alternative keys. Pause for {} minutes.".format(pause/60)
@@ -326,7 +321,6 @@ def get_user_friends(user_id, proxies, auth, limit=None):
         next_cursor = r2['next_cursor']
     except KeyError:
         print "\tKey Error in collecting followers."
-        print '\nr2: ', r2
         return friends_list
     # Are there more friends?
     next_cursor = r2['next_cursor']
