@@ -28,11 +28,10 @@ from requests_oauthlib import OAuth1
 
 ##
 # TWITTER AUTHORIZATION
-def get_twitter_certificate(proxies):
+def get_twitter_certificate():
     """
     This function gets the location of Twitter API Certificate if it is stored in pyTweet's directory. If the .cer file cannot be found it will be created
 
-    :param proxies:
     :return cafile: Filename of Twitter API certificate, including it's path
     """
     cafile = os.path.join(os.path.dirname(pyTweet.__file__), 'api.twitter.cer')     # Twitter API CA Certificate
@@ -70,7 +69,7 @@ def get_authorization(twitter_keys):
     This function obtains an authorization object for accessing the Official Twitter API.
 
     :param twitter_keys: Dictionary object containing 'API_KEY', 'API_SECRET', 'ACCESS_TOKEN', 'ACCESS_TOKEN_SECRET'
-    :return OAUTH: Authorization object requred for remaining pyTweet collection functions
+    :return OAUTH:       Authorization object requred for remaining pyTweet collection functions
     """
     for tk in ['API_KEY', 'API_SECRET', 'ACCESS_TOKEN', 'ACCESS_TOKEN_SECRET']:
         assert (tk in twitter_keys.keys()), "The field '{}' has not been found and is required for authentication.".format(tk)
@@ -81,12 +80,14 @@ def change_twitter_keys(type, reset, remaining, limit, proxies, auth):
     """
     This function switches to another pair of Twitter API keys, if they are available, to avoid pausing.
 
-    :param type:
-    :param proxies: proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
-    :param auth: Twitter application authentication, see the get_authorization method
-
-    :return new_auth: Authorization object using new_keys
-    :return isNewAuth: Boolean value representing whether a new authorization has been produced
+    :param type:           Type of API call: "timeline", "friends", "followers", "search_tweets", "search_users", "retweets", or "users"
+    :param reset:          The remaining window before the limit resets in UTC epoch seconds
+    :param remaining:      The number of requests left for the 15 minute window
+    :param limit:          The rate limit ceiling for that given reque
+    :param proxies:        Proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
+    :param auth:           Twitter application authentication, see the get_authorization method
+    :return best_key_auth: Authorization object using the best keys
+    :return isNewAuth:     Boolean value representing whether a new authorization has been produced
     """
     # Count JSON files in key directory
     key_dir = os.path.join(os.path.dirname(pyTweet.__file__), 'twitter_api_keys')
@@ -142,14 +143,14 @@ def get_rate_limit_status(type, proxies, auth):
     """
     This function returns the remaining and reset seconds.
 
-    @param type       - Type of API call: "timeline", "friends", "followers", "search_tweets", "search_users", "retweets", or "users"
-    @param proxies    - proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
-    @param auth       - Twitter application authentication, see the get_authorization method
-    @return reset - The remaining window before the limit resets in UTC epoch seconds
-    @return remaining - the number of requests left for the 15 minute window
-    @return limit - the rate limit ceiling for that given request
+    :param type: Type of API call: "timeline", "friends", "followers", "search_tweets", "search_users", "retweets", or "users"
+    :param proxies: proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
+    :param auth: Twitter application authentication, see the get_authorization method
+    :return reset: The remaining window before the limit resets in UTC epoch seconds
+    :return remaining: the number of requests left for the 15 minute window
+    :return limit: the rate limit ceiling for that given request
     """
-    cafile = get_twitter_certificate(proxies)
+    cafile = get_twitter_certificate()
     url = 'https://api.twitter.com/1.1/application/rate_limit_status.json?resources='
     try:
         if type == 'timeline':
@@ -202,11 +203,11 @@ def check_rate_limit_status(min_calls, type, auth, proxies):
     """
     This function checks the rate limit for an API call and pauses as specified by the API
 
-    @param min_calls - minimum number of calls left before pausing
-    @param type      - type of call: "timeline", "friends", "followers", "search_tweets", "search_users", "retweets", or "users"
-    @param proxies   - proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
-    @param auth      - Twitter application authentication, see the get_authorization method
-    @return auth
+    :param min_calls: minimum number of calls left before pausing
+    :param type: type of call: "timeline", "friends", "followers", "search_tweets", "search_users", "retweets", or "users"
+    :param proxies: proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
+    :param auth: Twitter application authentication, see the get_authorization method
+    :return auth:
     """
     # Check parameters
     assert (type.lower() in ['timeline', 'friends', 'followers', 'users', 'search_tweets', 'search_users', 'retweets']), "You must specify the parameter type as 'timeline', 'friends', 'followers', 'users', 'search_tweets', 'search_users', or 'retweets'."
@@ -236,13 +237,13 @@ def user_lookup_usernames(user_list, proxies, auth):
     Look up user information for a list of usernames. If a user's account has been deleted then it will not be returned in
     the .json of user information. We can request information for up to 100 users at a time.
 
-    @param user_list   - list of usernames
-    @param proxies    - proxy object, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
-    @param auth      - Twitter application authentication, see the get_authorization method
-    @return user_info - list of JSON user objects that could be returned.
+    :param user_list: list of usernames
+    :param proxies: proxy object, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
+    :param auth: Twitter application authentication, see the get_authorization method
+    :return user_info: list of JSON user objects that could be returned.
     """
     if (user_list is None) or (user_list == []): return []
-    cafile = get_twitter_certificate(proxies)
+    cafile = get_twitter_certificate()
     # Check RLS
     auth = check_rate_limit_status(min_calls=1, type='users', proxies=proxies, auth=auth)
     # Split usernames into groups of 100
@@ -265,13 +266,13 @@ def user_lookup_userids(user_list, proxies, auth):
     Look up user information for a list of user IDs. If a user's account has been deleted then it will not be returned in
     the .json of user information.  We can request information for up to 100 users at a time.
 
-    @param user_list      - list of user ids
-    @param proxies        - proxy object, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
-    @param auth          - Twitter application authentication, see the get_authorization method
-    @return user_info     - JSON list of user information that could be retrieved
+    :param user_list     : list of user ids
+    :param proxies       : proxy object, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
+    :param auth         : Twitter application authentication, see the get_authorization method
+    :return user_info    : JSON list of user information that could be retrieved
     """
     if (user_list is None) or (len(user_list) < 1): return []
-    cafile = get_twitter_certificate(proxies)
+    cafile = get_twitter_certificate()
     # Split user IDs into groups of 100
     userids = [user_list[i:i+100] for i in range(0, len(user_list), 100)]
     # RLS check
@@ -297,13 +298,13 @@ def get_user_friends(user_id, proxies, auth, limit=None):
     Look up the IDs of all of a user's friends (people they follow), and return them in a list. Find up to 5000 friends
     per request.
 
-    @param user_id
-    @param limit - limit to number of friends to collect. Set to None to get all friends - this is the default
-    @param proxies - proxy object, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
-    @param auth - Twitter application authentication, see the get_authorization method
-    @return friends_list - list of user's friends' IDs
+    :param user_id
+    :param limit: limit to number of friends to collect. Set to None to get all friends. this is the default
+    :param proxies: proxy object, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
+    :param auth: Twitter application authentication, see the get_authorization method
+    :return friends_list: list of user's friends' IDs
     """
-    cafile = get_twitter_certificate(proxies)
+    cafile = get_twitter_certificate()
     # Set API calls based on limit
     if (limit is not None) and (int(limit) <= 5000):
         keepLooking = False
@@ -343,13 +344,13 @@ def get_user_followers(user_id, proxies, auth, limit=None):
     """
     Look up the IDs of all of a user's followers (people who follow them), and return them in a list of json objects.
 
-    @param user_id - User ID
-    @param limit - limit to number of friends to collect. Set to None to get all friends - this is the default
-    @param proxies - proxy object, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
-    @param auth - Twitter application authentication, see the get_authorization method
-    @return followers_list - list of user's followers' IDs
+    :param user_id: User ID
+    :param limit: limit to number of friends to collect. Set to None to get all friends - this is the default
+    :param proxies: proxy object, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
+    :param auth: Twitter application authentication, see the get_authorization method
+    :return followers_list: list of user's followers' IDs
     """
-    cafile = get_twitter_certificate(proxies)
+    cafile = get_twitter_certificate()
     # Set API calls based on limit
     if (limit is not None) and limit <= 5000:
         keepLooking = False
@@ -393,8 +394,8 @@ def convert_twitter_date(twitter_date):
     """
     Convert Twitter date
 
-    @param twitter_date - date of creation in Twitter's format
-    @return converted_twitter_date - Python date object
+    :param twitter_date: date of creation in Twitter's format
+    :return converted_twitter_date: Python date object
     """
     twitter_date = twitter_date.lstrip()
     q = str(twitter_date[4:11] + twitter_date[(len(twitter_date)-4):len(twitter_date)])
@@ -405,17 +406,17 @@ def collect_user_timeline(USER, USER_type, start_date, proxies, auth):
     """
     Find timeline of a user occuring after start_date.
 
-    @param USER      - Can be either a Twitter user ID (numeric), Twitter user ID (string), or Twitter screen name.
-    @param USER_type - specifies whether USER is an user ID or a screen name, enter either 'user_id' or 'screen_name'
-    @param start_date- start of timeline segment to collect
-    @param proxies   - proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
-    @param auth     - Twitter application authentication, see the get_authorization method
-    @return timeline - timeline dictionary of user, None if one doesn't exist
+    :param USER     : Can be either a Twitter user ID (numeric), Twitter user ID (string), or Twitter screen name.
+    :param USER_type: specifies whether USER is an user ID or a screen name, enter either 'user_id' or 'screen_name'
+    :param start_date- start of timeline segment to collect
+    :param proxies  : proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
+    :param auth    : Twitter application authentication, see the get_authorization method
+    :return timeline: timeline dictionary of user, None if one doesn't exist
     """
     # Determine wheter USER is a user id or user name, then return the appropriate URL
     assert ((USER_type == 'user_id') or (USER_type == 'screen_name')), "The parameter USER_type must be either 'user_id' or 'screen_name'"
     url = 'https://api.twitter.com/1.1/statuses/user_timeline.json?{}={}&count=200'.format(USER_type, USER)
-    cafile = get_twitter_certificate(proxies)
+    cafile = get_twitter_certificate()
     # Collect user timeline
     auth = check_rate_limit_status(min_calls=2, type='timeline', proxies=proxies, auth=auth)
     r = requests.get(url=url, proxies=proxies, auth=auth, verify=cafile)
@@ -456,10 +457,10 @@ def pull_timeline_entitites(timeline, type, limit=None):
     """
     Pull fields out of a timeline array into a list.
 
-    @param timeline - A Twitter timeline that has been loaded into Python (typically a dictionary format)
-    @param type     - Specify 'user_mentions' or 'in_reply_to_user_id' to get from the timelines. Example, type = ['text', 'geo']
-    @param limit    - Limit of entities to collect from timeline. Default is None which means to collect all
-    @return         - List that contains the specified field, ex. List of in_reply_to_user_id.
+    :param timeline: A Twitter timeline that has been loaded into Python (typically a dictionary format)
+    :param type    : Specify 'user_mentions' or 'in_reply_to_user_id' to get from the timelines. Example, type = ['text', 'geo']
+    :param limit   : Limit of entities to collect from timeline. Default is None which means to collect all
+    :return        : List that contains the specified field, ex. List of in_reply_to_user_id.
     """
     # Check parameters
     possible_entities_to_collect = ['user_mention_id', 'in_reply_to_user_id']
