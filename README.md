@@ -8,12 +8,12 @@ The MITLL TweetE Twitter Analysis Tools perform multiple types of analysis on Tw
 Tweets are ingested from a flat TSV (tab-separated value) file. Results are stored in a serialized Python object (text analysis and normalization) and multiple graph formats.  Examples of research applications that used these tools are contained in the papers [WCampbell13] and [WCampbell14].
 
 Provided a collection of tweets, the MITLL TweetE Twitter Analysis Tools:
-1.	Normalize the input text and remove links and non-language characters
-2.	Extract information: hashtags, links, at-mentions
-3.	Filter out all documents not matching the user-specified language
-4.	Filter by geo location
-5.	Store the results in serialized files for graph creation, analysis with the MIT topic tools, or other counts-based classifiers
-6.	Create rich Twitter graphs 
+* 1.	Normalize the input text and remove links and non-language characters
+* 2.	Extract information: hashtags, links, at-mentions
+* 3.	Filter out all documents not matching the user-specified language
+* 4.	Filter by geo location
+* 5.	Store the results in serialized files for graph creation, analysis with the MIT topic tools, or other counts-based classifiers
+* 6.	Create rich Twitter graphs 
 These tools are command-line applications mainly suited for researchers who would like to convert Twitter data into structured form for further high-level analysis—e.g., natural language processing and graph analysis.
 
 
