@@ -194,6 +194,25 @@ def _save_profile_json(profile_struct, save_dir, khop):
     :param khop: Hop count
     :return json_filename: String
     """
+    # # Check type of profile_struct: If it's a str/unicode convert it to a dictionary object
+    # if profile_struct is None:
+    #     print "nonee"
+    #     return
+    # if isinstance(profile_struct, str) or isinstance(profile_struct, unicode):
+    #     print "type of profile_struct: ", type(profile_struct)
+    #     if profile_struct.strip(u' ') == u'':
+    #         print "Empy proflie????"
+    #         return
+    #     q = ujson.loads(profile_struct)
+    #     del profile_struct
+    #     profile_struct = q
+        # profie_struct = ujson.loads(unicode(profile_struct))
+    # print type(profile_struct)
+    # print profile_struct     # unicode string
+    # t = datetime.datetime.utcnow().strftime("%m-%d-%Y %H:%M:%S %z")
+    # # print "t: ", t
+    # print type(t)
+    # print type(unicode(t))
     profile_struct['DOC'] = datetime.datetime.utcnow().strftime("%m-%d-%Y %H:%M:%S %z")
     profile_struct['khop'] = khop
     profile_struct['has_timeline'] = None
@@ -315,10 +334,17 @@ def breadth_first_search(user_seed, timeline_start_date, host, port, save_dir={}
             # Collect and save profiles
             user_info = []
             if len(profiles_to_collect) > 0:
-                # print "\nstart collecting progiles: {} profiles".format(len(profiles_to_collect))
+                print "\nstart collecting profiles: {} profiles".format(len(profiles_to_collect))
                 user_info = pyTweet.user_lookup_usernames(user_list=list(profiles_to_collect), proxies=proxies, auth=auth)
+                if isinstance(user_info, dict) and ('errors' in user_info.keys()):
+                    print "\nThe initial seed cannot be collected..."
+                    print "Twitter error message: ", user_info
                 # Save profile information
+                # print "user_info: ", user_info
+                # print type(user_info)
                 for udata in user_info:
+                    # print "udata: ", udata
+                    # print type(udata)
                     json_filename = _save_profile_json(profile_struct=udata, save_dir=save_dir['twitter_profiles'], khop=khop)
                     place_savers['finished_users'][udata['id']] = json_filename
             # Convert screen names to user IDs in cur_user_list, identify unavailable accounts as well
@@ -405,12 +431,12 @@ def breadth_first_search(user_seed, timeline_start_date, host, port, save_dir={}
         if hop_limits['friends'] != 0:
             growth_params["h{}_friends.json".format(khop)] = set([])
             print "\nCOLLECT FRIENDS OF CURRENT USER SET"
-            print "place_savers['cur_user_list']: ", place_savers['cur_user_list']
+            # print "place_savers['cur_user_list']: ", place_savers['cur_user_list']
             for jj in place_savers['cur_user_list']:
                 profile_filename = os.path.join(save_dir['twitter_profiles'], place_savers['finished_users'][jj])
                 try:
                     data = ujson.load(open(profile_filename, 'r'))
-                    print data['id']
+                    # print data['id']
                 except (IOError, KeyError, TypeError):
                     user_info = pyTweet.user_lookup_userids(user_list=[uid], proxies=proxies, auth=auth)
                     if (user_info is not dict) or ('id' not in user_info.keys()):

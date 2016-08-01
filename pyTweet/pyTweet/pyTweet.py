@@ -27,6 +27,7 @@ profiles, timelines, friends and followers. During collection, the code is autom
 import pyTweet, requests, time, datetime, ujson, os, re, urllib, json, math, urllib2, uuid, random
 from requests_oauthlib import OAuth1
 from datetime import date, timedelta
+import numpy as np
 
 ##
 # MISCELANEOUS FUNCTIONS
@@ -316,7 +317,7 @@ def _find_best_twitter_key(type, reset, remaining, limit, proxies, auth):
     else:
         pause = abs(int(time.time()) - best_key[type]['RESET']) + 5
         print "\nUnable to find a better Twitter key, they all appear to be exahusted for the {} call. \nPause for {} " \
-              "minutes".format(pause/60)
+              "minutes".format(type, np.ceil(pause/60))
         time.sleep(pause)
     return (best_key_auth, isNewAuth)
 
@@ -447,6 +448,36 @@ def _get_rate_limit_status(type, proxies, auth):
     ujson.dump(api_key, open(auth['KEY_FILE'], 'w'))
     return (reset, remaining, limit)
 
+def _swap_keys(type, proxies, auth):
+    """
+    This function swaps keys in the case of an EOF error.
+
+    :param type: type of call: "timeline", "friends", "followers", "search_tweets", "search_users", "retweets", or "users"
+    :param proxies: proxy dictionary, ex. {'http': 'http://%s:%s' % (HOST, PORT), 'https': 'http://%s:%s' % (HOST, PORT)}
+    :param auth: Twitter application authentication, see the get_authorization method
+    """
+    # Check parameters
+    rls_types = _rls_type_list()
+    assert (type in rls_types), "Specify an RLS type as: {}".format("', '".join(rls_types))
+    # Collect reset and remaining
+    (reset, remaining, limit) = _get_rate_limit_status(type=type, proxies=proxies, auth=auth)
+    (auth, isNewAuth) = _find_best_twitter_key(type=type, reset=reset, remaining=remaining, limit=limit, proxies=proxies, auth=auth)
+    if not isNewAuth:
+        pause = abs(int(time.time()) - reset) + 5
+        print "There isn't a better key to use"
+
+        # Pause if needed
+    if remaining < 1:
+        pause = abs(int(time.time()) - reset) + 5
+        # If pause is longer than 3 minutes try another set of keys...
+        if pause > 300:
+            # print "SWITCHING TWITTER KEYS"
+            (auth, isNewAuth) = _find_best_twitter_key(type=type, reset=reset, remaining=remaining, limit=limit, proxies=proxies, auth=auth)
+        else:
+            print "There is less than one call remaining in this window. Pause for {} seconds.".format(math.ceil(pause))
+            time.sleep(pause)
+    return auth
+
 def _check_rate_limit_status(type, auth, proxies):
     """
     This function checks the rate limit for an API call and pauses as specified by the API
@@ -524,12 +555,14 @@ def user_lookup_usernames(user_list, proxies, auth, include_entities=''):
         params['include_entities'] = include_entities
     # Split usernames into groups of 100
     usernames = [user_list[i:i+100] for i in range(0, len(user_list), 100)]
+    # print "split usernames: ", usernames
     # Prepare API call
     cafile = _get_twitter_certificate()
     auth = _check_rate_limit_status(type='users', proxies=proxies, auth=auth)     # Check RLS
     url = 'https://api.twitter.com/1.1/users/lookup.json?screen_name=' + ','.join(usernames[0])
     if params != {}:
         url += '&' + urllib.urlencode(params)
+    # print "url: ", url
     r = requests.get(url=url, proxies=proxies, auth=auth['OAUTH'], verify=cafile)
     _discount_remaining_calls(type='users', proxies=proxies, auth=auth)
     user_info = r.json()
@@ -540,6 +573,7 @@ def user_lookup_usernames(user_list, proxies, auth, include_entities=''):
             url = 'https://api.twitter.com/1.1/users/lookup.json?screen_name=' + ','.join(usernames[0])
             if params != {}:
                 url += '&' + urllib.urlencode(params)
+            # print "url: ", url
             r = requests.get(url=url, proxies=proxies, auth=auth['OAUTH'], verify=cafile)
             _discount_remaining_calls(type='users', proxies=proxies, auth=auth)
             user_info = user_info + r.json()
@@ -574,7 +608,11 @@ def user_lookup_userids(user_list, proxies, auth, include_entities=''):
         url += '&' + urllib.urlencode(params)
     r = requests.get(url=url, proxies=proxies, auth=auth['OAUTH'], verify=cafile)
     _discount_remaining_calls(type='users', proxies=proxies, auth=auth)
-    user_info = r.json()
+    try:
+        user_info = r.json()
+    except ValueError:
+        print "ValueError: No JSON object could be decoded"
+        return []
     # Additional requests for user information, AKA more than 100 user IDs requested
     if len(userids) > 1:
         for i in range(len(userids)):
@@ -641,7 +679,10 @@ def lookup_users(proxies, auth, screen_names='', user_ids='', include_entities='
                 url += '&' + urllib.urlencode(params)
             r = requests.get(url=url, proxies=proxies, auth=auth['OAUTH'], verify=cafile)
             _discount_remaining_calls(type='users', proxies=proxies, auth=auth)
-            if 'errors' in r.json():
+            try:
+                if 'errors' in r.json():
+                    continue
+            except ValueError:
                 continue
             user_info += r.json()
     # Collect screen names
@@ -655,7 +696,10 @@ def lookup_users(proxies, auth, screen_names='', user_ids='', include_entities='
                 url += '&' + urllib.urlencode(params)
             r = requests.get(url=url, proxies=proxies, auth=auth['OAUTH'], verify=cafile)
             _discount_remaining_calls(type='users', proxies=proxies, auth=auth)
-            if 'errors' in r.json():
+            try:
+                if 'errors' in r.json():
+                    continue
+            except ValueError:
                 continue
             user_info += r.json()
     return user_info
@@ -1077,7 +1121,7 @@ def get_timeline(proxies, auth, start_date='', user_id='', screen_name='', trim_
             oldest_date = _convert_twitter_date(rr2[len(rr2)-1]['created_at'])
             max_id = rr2[len(rr2)-1]['id']
         else:
-            print "\tThere are no more tweets to collect"
+            print "\tThere are no more tweets to collect from user {}".format(user)
             break
     return timeline
 
@@ -1134,16 +1178,14 @@ def collect_user_timeline(USER, USER_type, start_date, proxies, auth):
         if isinstance(rr2, dict) and (('error' in rr2.keys()) or ('errors' in rr2.keys())):
             print "Timeline Error: ", rr2
             break
-        if (rr2 != None) or (len(rr2) > 1):
-            # Remove redundant tweet
-            rr2.remove(rr2[0])
-            # Add tweets to struct
-            timeline = timeline + rr2
+        if (rr2 != None) and (len(rr2) > 1):
+            rr2.remove(rr2[0])          # Remove redundant tweet
+            timeline = timeline + rr2   # Add tweets to struct
             # update new_date and max_id
             oldest_date = _convert_twitter_date(rr2[len(rr2)-1]['created_at'])
             max_id = rr2[len(rr2)-1]['id']
         else:
-            print "\tThere are no more tweets to collect"
+            print "\tThere are no more tweets to collect by user {}".format(USER)
             break
     # EOF return timeline if it exists
     return timeline
